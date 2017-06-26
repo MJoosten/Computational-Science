@@ -14,8 +14,8 @@ format compact
 
 %% Start
 
-enable_plots=false; %do you wish to plot the WLC? %debugging
-N=1000; %Iterations of Polymer/chain (DNA) generation (default:100)
+enable_plots=true; %do you wish to plot the WLC? %debugging
+N=100; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=2000; % Number of segments of chain (base pairs) (default:2000)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
 length_persist=50; %[nm] persistence length (default:50)
@@ -54,7 +54,7 @@ for ii=1:N %loop over N iterations(generate N independent runs)
     end
     comp_time(ii,1)=toc;
     
-    location(:,:,ii)=cumsum(tangents(:,:,ii)); 
+    location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
     
     distances(ii)=sum(((location(:,end,ii)-location(:,1,ii))).^2);   
     comp_time(ii,2)=toc;
@@ -76,7 +76,7 @@ if enable_plots %if you want to plot the generated WLC
    ylabel('Square end to end distance')
     
     figure %testing biases in angles
-   histogram(rand_angles(1,:))
+   histogram(rand_angles(:,1))
    title('Debugging angles - for first iteration of N')
    xlabel('angle')
    ylabel('frequency')
