@@ -14,8 +14,8 @@ format compact
 
 %% Start
 
-enable_plots=true; %do you wish to plot the WLC? %debugging
-N=100; %Iterations of Polymer/chain (DNA) generation (default:100)
+enable_plots=false; %do you wish to plot the WLC? %debugging
+N=1000; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=2000; % Number of segments of chain (base pairs) (default:2000)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
 length_persist=50; %[nm] persistence length (default:50)
@@ -23,7 +23,7 @@ length_chain=K*length_link; %[nm] Total length of chain (DNA)
 t_initial=[1;0]; %initial orientation of t vector (unit length);
 
 %Preallocation
-comp_time=zeros(N,1); %this array will hold the computational time for
+comp_time=zeros(N,2); %this array will hold the computational time for
                       %for each Iteration (N iterations)
 distances=zeros(N,1); %will hold the squared end-to-end distances
 location=zeros(2,K,N); %will hold the location for each polymer link
@@ -39,18 +39,28 @@ fprintf('\n>>>[task 1] Starting Computation with %u iterations and %u segments',
 
 
 %generate random bend angles - mu=0;var=length_link/length_persistence
-rand_angles=sqrt(length_link/length_persist)*randn(N,K);
+rand_angles=sqrt(length_link/length_persist)*randn(K,N);
+cos_t=cos(rand_angles);
+sin_t=sin(rand_angles);
+%generate Summing Matrix
+sum_matrix=triu(ones(K,K),0);
+
 
 % % % angle_matrix=[cos(rand_angles),-sin(rand_angles);sin(rand_angles),cos(rand_angles)]
 for ii=1:N %loop over N iterations(generate N independent runs)
     tic %start a time for each run %FIX
+    
     for jj=1:K-1 %compute K segments
-        tangents(:,jj+1,ii)=[cos(rand_angles(ii,jj)),-sin(rand_angles(ii,jj));sin(rand_angles(ii,jj)),cos(rand_angles(ii,jj))]*tangents(:,jj,ii);
-        location(:,jj+1,ii)=location(:,jj,ii)+tangents(:,jj+1,ii)*length_link;
-        
+        %computing and storing these seems to improve performance by ~0.5%       
+        tangents(:,jj+1,ii)=[cos_t(jj,ii),-sin_t(jj,ii);sin_t(jj,ii),cos_t(jj,ii)]*tangents(:,jj,ii);     
     end
-    distances(ii)=sum((location(:,end,ii)-location(:,1,ii)).^2);   
-    comp_time(ii)=toc;
+    comp_time(ii,1)=toc;
+    
+    location(1,:,ii)=length_link*(sum_matrix*tangents(1,:,ii)');
+    location(2,:,ii)=length_link*(sum_matrix*tangents(2,:,ii)');  
+    
+    distances(ii)=sum(((location(:,end,ii)-location(:,1,ii))).^2);   
+    comp_time(ii,2)=toc;
     
 end
 
@@ -79,11 +89,11 @@ end
 
 %print squared-end-to-end distances (mean + standard deviation)
 %TODO: check if standard deviation is correct (see document)
-fprintf('\n> The mean end-to-end distances for %u iterations is: %f, with standard deviation: %f',N,mean(distances),std(distances/sqrt(N))) %
+fprintf('\n> The mean end-to-end distances for %u iterations is: %f, with standard deviation: %f',N,mean(distances),std(distances)/sqrt(N)) %
 
 %print computational times
 %TODO: figure out proper display values for times (comp times)
-fprintf('\n> Total computational time for %u iterations is: %f, the mean time per iteration is:  %f',N,sum(comp_time),mean(comp_time));
+fprintf('\n> Total computational time for %u iterations is: %f, the mean time per iteration is:  %f',N,sum(comp_time(:,2)),mean(comp_time(:,2)));
 
 %closing statement (for console iterpretability)
 fprintf('\n>>> %u iterations completed, Computation finished\n',N)
