@@ -43,8 +43,6 @@ rand_angles=sqrt(length_link/length_persist)*randn(K,N);
 cos_t=cos(rand_angles);
 sin_t=sin(rand_angles);
 %generate Summing Matrix
-sum_matrix=triu(ones(K,K),0);
-
 
 % % % angle_matrix=[cos(rand_angles),-sin(rand_angles);sin(rand_angles),cos(rand_angles)]
 for ii=1:N %loop over N iterations(generate N independent runs)
@@ -56,8 +54,7 @@ for ii=1:N %loop over N iterations(generate N independent runs)
     end
     comp_time(ii,1)=toc;
     
-    location(1,:,ii)=length_link*(sum_matrix*tangents(1,:,ii)');
-    location(2,:,ii)=length_link*(sum_matrix*tangents(2,:,ii)');  
+    location(:,:,ii)=cumsum(tangents(:,:,ii)); 
     
     distances(ii)=sum(((location(:,end,ii)-location(:,1,ii))).^2);   
     comp_time(ii,2)=toc;
