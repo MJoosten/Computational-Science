@@ -17,15 +17,18 @@ format compact
 %% Start
 
 enable_plots=true; %do you wish to plot the WLC? %debugging
+enable_speed_plots=true; %do you wish to evaluate running times?
 P=8; %number of different values for K to try (affects total length)
-P_range=[1500,20000]; %(default:1500,20000)
+P_range=[5,20000]; %(default:1500,20000)
 N=100; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain (base pairs)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
 length_persist=85; %[nm] persistence length (default:50)
 length_chain=K*length_link; %[nm] Total length of chain (DNA)
 t_initial=[1;0]; %initial orientation of t vector (unit length);
-time=0;
+                %Dont change this vector and expect this to work
+
+time_comp=zeros(P,1);
 %Some Preallocation
 distances=zeros(N,P);
 distances_to_4=zeros(N,P);
@@ -33,38 +36,44 @@ distances_to_4=zeros(N,P);
 % Calculate models -------------------------------------------------------- 
 
 %opening statement (for console iterpretability)
-fprintf('\n>>>[task 2] Starting Computation with %u iterations, %u Configurations (P) and %u to %u segments',N,P,K(1),K(end))
+fprintf(['\n>>>[task 2] Starting Computation with %u iterations,'...
+            'u Configurations (P) and %u to %u segments'],N,P,K(1),K(end))
+
 
 for pp=1:P
-    K_select=K(pp);
+    tic;
+    K_select=K(pp); %select the value for K (#links)    
     
     %Main Preallocation
     location=zeros(2,K_select,N); %will hold the location for each polymer link
-    tangents=ones(2,K_select,N);% holds the angles %TODO: remove
-    tangents(1,:,:)=tangents(1,:,:)*t_initial(1);
-    tangents(2,:,:)=tangents(2,:,:)*t_initial(2);% 
-    rand_angles=sqrt(length_link/length_persist)*randn(K_select,N);
-    cos_t=cos(rand_angles);
-    sin_t=sin(rand_angles);    
+    tangents=ones(2,K_select,N);% holds the angles 
     
+    %generate random bend angles - mu=0;var=length_link/length_persistence    
+    rand_angles=sqrt(length_link/length_persist)*randn(K_select,N);
+    angles_cum=cumsum(rand_angles);
+    cos_test=cos(angles_cum)';
+    sin_test=sin(angles_cum)';
+
     fprintf('\nComputing WLC Distance for K=%u links, for N=%u iterations',K_select,N)
-    tic;
-    for ii=1:N %loop over N iterations(generate N independent runs)       
-        for jj=1:K_select-1 %compute K segments
-            tangents(:,jj+1,ii)=[cos_t(jj,ii),-sin_t(jj,ii);sin_t(jj,ii),cos_t(jj,ii)]*tangents(:,jj,ii);           
-        end
-        
+    
+    for ii=1:N %loop over N iterations(generate N independent runs)     
+        %calculate tangents
+        tangents(:,:,ii)=[cos_test(ii,:);sin_test(ii,:)];
+
         %update Locations
         location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
         
         %Compute Distances
         distances(ii,pp)=sum((location(:,end,ii)-location(:,1,ii)).^2);         
     end
-    time=toc;
+    time_comp(pp)=toc;
 end
+%closing statement (for console iterpretability)
+fprintf('\n>>> %u configurations completed, Computation finished\n',P)
 
 %compute theoretical values
-theoretical_full=4*length_persist*length_chain-8*length_persist^2*(1-exp(-length_chain/(length_persist*2)));    
+theoretical_full=4*length_persist*length_chain-8*length_persist^2*...
+    (1-exp(-length_chain/(length_persist*2)));    
 theoretical_approx=4*length_persist*length_chain-8*length_persist^2;
 
 
@@ -90,8 +99,19 @@ if enable_plots
     ylabel('squared end to end distance [nm^2]')
     legend('Monte Carlo','Theoretical Values','Theoretical Values (using approximation)')
 end
-%closing statement (for console iterpretability)
-fprintf('\n>>> %u configurations completed, Computation finished\n',P)
+
+
+%to evaluate the computational time per link. We expect a linear
+%relationship
+if enable_speed_plots
+    figure
+    plot(K,time_comp)
+    title('computational time per link count')
+    xlabel('number of links')
+    ylabel(sprintf('time to compute WLC (2D) for %u iterations at given K [seconds]',N))
+end
+
+
 
 %% Fitting Function
 
@@ -99,7 +119,8 @@ unknown=linspace(1,500,1000);
 % we can determine this using matlab symbolic language, which is probably a
 % good thing for bonus points
 for ii=1:1000
-    Chi_Deriv(ii)=sum(2*(16*unknown(ii)-4*length_chain).*(mean(distances,1)-4*unknown(ii).*length_chain+8*unknown(ii).^2));
+    Chi_Deriv(ii)=sum(2*(16*unknown(ii)-4*length_chain).*...
+        (mean(distances,1)-4*unknown(ii).*length_chain+8*unknown(ii).^2));
 end
 figure
 plot(unknown,Chi_Deriv)
@@ -111,7 +132,8 @@ refline(0,0)
 
 syms persistence_length_sym
 chi=((mean(distances,1)-4*persistence_length_sym.*length_chain+8*persistence_length_sym.^2));
-chi_deriv=(2*(16*persistence_length_sym-4*length_chain(end)).*(mean(mean(distances,1))-4*persistence_length_sym*length_chain(end)+8*persistence_length_sym^2));
+chi_deriv=(2*(16*persistence_length_sym-4*length_chain(end)).*...
+    (mean(mean(distances,1))-4*persistence_length_sym*length_chain(end)+8*persistence_length_sym^2));
 chi_deriv_2=diff(chi);
 chi_deriv_3=persistence_length_sym^2
 
@@ -121,7 +143,3 @@ xlim([1,500])
 ylim([-1,5]*10^10)
 kappa=root(chi_deriv_2,persistence_length_sym)
 vpa(kappa)
-
-
-%% VECTORISED PERFORMANCE EVALUATION --------------------------------------
-

@@ -15,12 +15,13 @@ format compact
 %% Start
 
 enable_plots=true; %do you wish to plot the WLC? %debugging
-N=100; %Iterations of Polymer/chain (DNA) generation (default:100)
+N=10000; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=2000; % Number of segments of chain (base pairs) (default:2000)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
 length_persist=50; %[nm] persistence length (default:50)
 length_chain=K*length_link; %[nm] Total length of chain (DNA)
 t_initial=[1;0]; %initial orientation of t vector (unit length);
+                 %Dont change this vector and expect this to work
 
 %Preallocation
 comp_time=zeros(N,2); %this array will hold the computational time for
@@ -29,8 +30,6 @@ distances=zeros(N,1); %will hold the squared end-to-end distances
 location=zeros(2,K,N); %will hold the location for each polymer link
 
 tangents=ones(2,K,N);% holds the angles %TODO: remove
-tangents(1,:,:)=tangents(1,:,:)*t_initial(1);
-tangents(2,:,:)=tangents(2,:,:)*t_initial(2);% 
 
 % Calculate models 
 
@@ -40,22 +39,19 @@ fprintf('\n>>>[task 1] Starting Computation with %u iterations and %u segments',
 
 %generate random bend angles - mu=0;var=length_link/length_persistence
 rand_angles=sqrt(length_link/length_persist)*randn(K,N);
-cos_t=cos(rand_angles);
-sin_t=sin(rand_angles);
-%generate Summing Matrix
+angles_cum=cumsum(rand_angles);
+cos_test=cos(angles_cum)';
+sin_test=sin(angles_cum)';
 
-% % % angle_matrix=[cos(rand_angles),-sin(rand_angles);sin(rand_angles),cos(rand_angles)]
 for ii=1:N %loop over N iterations(generate N independent runs)
-    tic %start a time for each run %FIX
+    tic %start a time for each run %FIX   
+
+    tangents(:,:,ii)=[cos_test(ii,:);sin_test(ii,:)];
     
-    for jj=1:K-1 %compute K segments
-        %computing and storing these seems to improve performance by ~0.5%       
-        tangents(:,jj+1,ii)=[cos_t(jj,ii),-sin_t(jj,ii);sin_t(jj,ii),cos_t(jj,ii)]*tangents(:,jj,ii);     
-    end
-    comp_time(ii,1)=toc;
-    
+    comp_time(ii,1)=toc;    
+
     location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
-    
+
     distances(ii)=sum(((location(:,end,ii)-location(:,1,ii))).^2);   
     comp_time(ii,2)=toc;
     
