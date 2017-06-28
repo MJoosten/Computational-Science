@@ -1,3 +1,10 @@
+%% Computational Science Final Project: Worm-Like Chain
+% Task 4
+% Authors: Maarten Joosten & Nemo Andrea
+% IDs: xxxxxxx & 4473035
+% Date of Creation: 26-06-2017
+% github: https://github.com/MJoosten/Computational-Science
+
 clear all;
 close all;
 format compact;
@@ -72,18 +79,18 @@ for pp=1:P
             c_2=(cos(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))/norm_factor; 
 
             %calculate the new tangent vector (3D)
-            tangents(:,jj+1,ii)=c_t*tangents(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;
-
-            %update the location of the WLC (3D)
-            location(:,jj+1,ii)=location(:,jj,ii)+tangents(:,jj+1,ii)*length_link;        
+            tangents(:,jj+1,ii)=c_t*tangents(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;    
         end
         
+        %update Locations (fast method)
+        location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
     end
+    
     Xend(pp,:) = location(1,end,:);
     Yend(pp,:) = location(2,end,:);
     bins(pp,:) = linspace(-r*sigma(pp),r*sigma(pp),Nbins);
     points(pp,:) = linspace(-r*sigma(pp),r*sigma(pp),Npoints);
-%theoretical distribution
+    %theoretical distribution
     Px(pp,:) = 1./sqrt(pi*length_persist*length_chain(pp))*exp((-points(pp,:).^2)./(length_persist*length_chain(pp)));
 end
 
@@ -106,14 +113,17 @@ for pp=1:P
 %     sprintf('standard deviation in x for K=%i: %0.4f \nmean in x for K=%i: %0.4f \npredicted deviation: %0.4f',K(pp),std(Xend(pp,:)),K(pp),mean(Xend(pp,:)),sigma(pp))
 %     sprintf('standard deviation in y for K=%i: %0.4f \nmean in y for K=%i: %0.4f \npredicted deviation: %0.4f',K(pp),std(Yend(pp,:)),K(pp),mean(Yend(pp,:)),sigma(pp))
 
+    %calculate the standard deviations of respective coordinates for each value of K
     devX(pp)=std(Xend(pp,:));
     devY(pp)=std(Yend(pp,:));
 end
+
+
 figure
 subplot(1,2,1)
 bar(bins(end,:),Hx);title(sprintf('zoom into K=%i segments (x)',K(end)))
 subplot(1,2,2)
-bar(bins(end,:),Hx);title(sprintf('zoom into K=%i segments (y)',K(end)))
+bar(bins(end,:),Hy);title(sprintf('zoom into K=%i segments (y)',K(end)))
 
 figure
 subplot(1,2,1)

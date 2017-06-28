@@ -79,12 +79,13 @@ for pp=1:P
 
             %calculate the new tangent vector (3D)
             tangents(:,jj+1,ii)=c_t*tangents(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;
-
-            %update the location of the WLC (3D)
-            location(:,jj+1,ii)=location(:,jj,ii)+tangents(:,jj+1,ii)*length_link;        
         end
+        
+        %update Locations (fast method)
+        location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
+        
         %Compute the squared end-to-end distance (works for non-zero starting
-        %points too. Alternative method would be norm(vector)^2.
+        %points too. Alternative method would be norm(vector)^2.      
         distances(ii,pp)=sum((location(:,end,ii)-location(:,1,ii)).^2);
         comp_time(ii)=toc; %clock in computation time for this (single) WLC.    
     end
