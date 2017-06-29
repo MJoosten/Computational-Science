@@ -140,7 +140,7 @@ if enable_plots
     %plotting a subset (multiple) WLC (set by plot_wlc_number)    
     subplot(1,2,1)
     if plot_scatter
-        for ii=1:plot_wlc_number
+        for ii=1:min([N 100])
             scatter3(location(1,:,ii),location(2,:,ii),location(3,:,ii),...
                 [],linspace(1,K(end),K(end)),'filled')
             hold on
@@ -150,7 +150,7 @@ if enable_plots
         ylabel('Y position [nm]')
         zlabel('Z position [nm]')
     else
-        for ii=1:plot_wlc_number
+        for ii=1:min([N 100])
             plot3(location(1,:,ii),location(2,:,ii),location(3,:,ii))
             hold on
         end
@@ -170,7 +170,7 @@ if enable_plots
     zlabel('Z position [nm]')
 end
 
-%Plotting Error plot (4B)
+%Plotting Error plot (3B)
 
 if enable_error_plot
     %%make non-for loop? more elegant, no need for performance

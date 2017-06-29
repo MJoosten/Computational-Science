@@ -11,11 +11,10 @@ format compact;
 
 %% Start
 
-%----------------------TODO: VECTORISE, BABY ------------------------------
 %parameters
 P=8; %number of configurations (configuration = amount segments of chain) 
 P_range=[10,5000]; %range of segment numbers (default: 100,5000)
-N=100; %Iterations of Polymer/chain (DNA) generation (default:100)
+N=1000; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain
                                      %(base pairs) (default:2000)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
@@ -93,8 +92,6 @@ for pp=1:P
     %theoretical distribution
     Px(pp,:) = 1./sqrt(pi*length_persist*length_chain(pp))*exp((-points(pp,:).^2)./(length_persist*length_chain(pp)));
 end
-
-
 
 %signaling computation is finished
 fprintf('\n>%u Configurations each with %u iterations completed, Computation finished',P,N)

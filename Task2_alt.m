@@ -18,7 +18,7 @@ format compact
 
 enable_plots=true; %do you wish to plot the WLC? %debugging
 enable_speed_plots=true; %do you wish to evaluate running times?
-P=8; %number of different values for K to try (affects total length)
+P=20; %number of different values for K to try (affects total length)
 P_range=[5,20000]; %(default:1500,20000)
 N=100; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain (base pairs)
@@ -88,6 +88,7 @@ end
 close all
 if enable_plots
     figure
+    subplot(1,2,1)
     errorbar(length_chain,mean(distances,1),error_chain);
     hold on
     plot(length_chain,theoretical_full)
@@ -98,6 +99,10 @@ if enable_plots
     xlabel('Length of chain [nm]')
     ylabel('squared end to end distance [nm^2]')
     legend('Monte Carlo','Theoretical Values','Theoretical Values (using approximation)')
+
+    subplot(1,2,2)
+    plot(length_chain,exp(-length_chain./(length_persist*2)))
+    title('f(L) = exp(-L/2*ksi)');xlabel('Length of chain [nm]');ylabel('f(L)');
 end
 
 
