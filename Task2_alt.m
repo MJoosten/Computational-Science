@@ -1,7 +1,6 @@
 %% Computational Science Final Project: Worm-Like Chain
 % Task 2
 % Authors: Maarten Joosten & Nemo Andrea
-% IDs: xxxxxxx & 4473035
 % Date of Creation: 20-06-2017
 % github: https://github.com/MJoosten/Computational-Science
 
@@ -26,7 +25,7 @@ length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
 length_persist=85; %[nm] persistence length (default:50)
 length_chain=K*length_link; %[nm] Total length of chain (DNA)
 t_initial=[1;0]; %initial orientation of t vector (unit length);
-                %Dont change this vector and expect this to work
+             
 
 time_comp=zeros(P,1);
 %Some Preallocation
@@ -45,27 +44,33 @@ for pp=1:P
     K_select=K(pp); %select the value for K (#links)    
     
     %Main Preallocation
-    location=zeros(2,K_select,N); %will hold the location for each polymer link
-    tangents=ones(2,K_select,N);% holds the angles 
+    location=zeros(N,2,K_select); %will hold the location for each polymer link
+    tangents=ones(N,2,K_select);% holds the angles 
     
     %generate random bend angles - mu=0;var=length_link/length_persistence    
     rand_angles=sqrt(length_link/length_persist)*randn(K_select,N);
     angles_cum=cumsum(rand_angles);
     cos_test=cos(angles_cum)';
     sin_test=sin(angles_cum)';
+    
+    %generate rotation for starting x coordinate
+    rotation_x=zeros(N,2,K_select);
+    rotation_x(:,1,:)=cos_test;
+    rotation_x(:,2,:)=sin_test;
+
+    %generate rotation for starting y coordinate
+    rotation_y=zeros(N,2,K_select);
+    rotation_y(:,1,:)=-sin_test;
+    rotation_y(:,2,:)=cos_test;
 
     fprintf('\nComputing WLC Distance for K=%u links, for N=%u iterations',K_select,N)
-    
-    for ii=1:N %loop over N iterations(generate N independent runs)     
-        %calculate tangents
-        tangents(:,:,ii)=[cos_test(ii,:);sin_test(ii,:)];
+     
+    tangents=rotation_x*t_initial(1)+rotation_y*t_initial(2);
 
-        %update Locations
-        location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
-        
-        %Compute Distances
-        distances(ii,pp)=sum((location(:,end,ii)-location(:,1,ii)).^2);         
-    end
+    location=cumsum(tangents*length_link,3); 
+
+    distances(:,pp)=sum(((location(:,:,1)-location(:,:,end))).^2,2);  
+    
     time_comp(pp)=toc;
 end
 %closing statement (for console iterpretability)
@@ -95,7 +100,7 @@ if enable_plots
     hold on
     plot(length_chain,theoretical_approx)
     hold off
-    title('Length of chain versus the squared end-to-end distance')
+    title('[Task 2]Length of chain versus the squared end-to-end distance')
     xlabel('Length of chain [nm]')
     ylabel('squared end to end distance [nm^2]')
     legend('Monte Carlo','Theoretical Values','Theoretical Values (using approximation)')
@@ -111,7 +116,7 @@ end
 if enable_speed_plots
     figure
     plot(K,time_comp)
-    title('computational time per link count')
+    title('[Task 2]computational time per link count')
     xlabel('number of links')
     ylabel(sprintf('time to compute WLC (2D) for %u iterations at given K [seconds]',N))
 end
