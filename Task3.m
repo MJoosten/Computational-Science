@@ -21,7 +21,7 @@ plot_scatter=true; %do you wish to havea  scatter plot over plot3 for
                    %the plot with multiple WLC in one figure?
 P=8; %number of configurations (configuration = amount segments of chain) 
 P_range=[50,10000]; %range of segment numbers (default: 100,5000)
-N=1000; %Iterations of Polymer/chain (DNA) generation (default:100)
+N=5000; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain
                                      %(base pairs) (default:2000)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
@@ -32,7 +32,7 @@ t_initial=[0;0;1]; %initial orientation of t vector (unit length);
 
                    
 %Preallocation - Outside Loop
-comp_time=zeros(N,1); %this array will hold the computational time for
+comp_time=0; %this array will hold the computational time for
                       %for each Iteration (N iterations)
 distances=zeros(N,P); %will hold the squared end-to-end distances
 
@@ -45,8 +45,8 @@ for pp=1:P
     K_local=K(pp);
     
     %Preallocation - Inside Loop
-    location=zeros(3,K_local,N); %will hold the location for each polymer link (3D)
-    tangents=ones(3,K_local,N);% holds the angles %TODO: do this more efficiently
+    location=zeros(N,3,K_local); %will hold the location for each polymer link (3D)
+    tangents=ones(N,3,K_local);% holds the angles %TODO: do this more efficiently
 
     % generate random bend angles
     % Gaussian Distribution with mu=0;var=length_link/length_persistence
@@ -66,23 +66,27 @@ for pp=1:P
     % Computation ------------------------------------------------------------- 
 
     fprintf('\nComputing WLC 3D Distance for K=%u links, for N=%u iterations',K_local,N)
-    for ii=1:N %loop over N iterations(generate N independent runs)
+   
         tic %start a clock for each run        
              
         %compute tangents
-        factor_cont=(sqrt(1-(sin_test_1(:,ii).*sin_test_2(:,ii)).^2));
-        tangents(1,:,ii)=sin_test_1(:,ii).*cos_test_2(:,ii)./factor_cont;
-        tangents(2,:,ii)=cos_test_1(:,ii).*sin_test_2(:,ii)./factor_cont;
-        tangents(3,:,ii)=cos_test_1(:,ii).*cos_test_2(:,ii)./factor_cont;
+        factor_cont=(sqrt(1-(sin_test_1.*sin_test_2.^2)));
+        tangents(:,1,:)=(sin_test_1.*cos_test_2./factor_cont)';
+        tangents(:,2,:)=(cos_test_1.*sin_test_2./factor_cont)';
+        tangents(:,3,:)=(cos_test_1.*cos_test_2./factor_cont)';
+        
+%           tangents(:,1,:)=sin_test_1(:,ii).*cos_test_2(:,ii)./factor_cont;
+%         tangents(:,2,:)=cos_test_1(:,ii).*sin_test_2(:,ii)./factor_cont;
+%         tangents(:,3,:)=cos_test_1(:,ii).*cos_test_2(:,ii)./factor_cont;
        
-        %update Locations (fast method)
-        location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
+        %update Locations (fast method) 
+        location=cumsum(tangents*length_link,3); 
         
         %Compute the squared end-to-end distance (works for non-zero starting
         %points too. Alternative method would be norm(vector)^2.      
-        distances(ii,pp)=sum((location(:,end,ii)-location(:,1,ii)).^2);
-        comp_time(ii)=toc; %clock in computation time for this (single) WLC.    
-    end
+         distances(:,pp)=sum((location(:,:,1)-location(:,:,end)).^2,2);
+        comp_time=toc; %clock in computation time for this  WLC set.    
+  
 
     %calculate theoretical distance
     theoretical_dist=2*length_persist*length_chain-2*length_persist^2*...
@@ -149,7 +153,7 @@ if enable_plots
     subplot(1,2,1)
     if plot_scatter
         for ii=1:min([N 100])
-            scatter3(location(1,:,ii),location(2,:,ii),location(3,:,ii),...
+            scatter3(location(ii,1,:),location(ii,2,:),location(ii,3,:),...
                 [],linspace(1,K(end),K(end)),'filled')
             hold on
         end
@@ -170,7 +174,7 @@ if enable_plots
     end
     %plotting a single WLC 
     subplot(1,2,2)
-    scatter3(location(1,:,1),location(2,:,1),location(3,:,1),...
+    scatter3(location(1,1,:),location(1,2,:),location(1,3,:),...
         [],linspace(1,K(end),K(end)),'filled')
     title('[Task 3]WLC plot for the first iteration (single WLC)')
     xlabel('X position [nm]')
@@ -179,7 +183,7 @@ if enable_plots
 end
 
 %Plotting Error plot (3B)
-
+  
 if enable_error_plot
     %%make non-for loop? more elegant, no need for performance
     %%TODO: can you check this? it seems okay now, but id like to have someone
@@ -220,7 +224,7 @@ fprintf('\n> The theoretical squared end-to-end distance is: %f; the difference 
 %TODO: figure out proper display values for times (comp times)
 %<<<Keep in mind the figures only display the LAST iteration over P (last
 %configuration!>>>
-fprintf('\n> Total computational time for %u iterations is: %f, the mean time per iteration is:  %f',N,sum(comp_time),mean(comp_time));
+fprintf('\n> Total computational time for %u iterations is: %f, the mean time per iteration is:  %f',N,comp_time,comp_time/N);
 
 %closing statement (for console iterpretability)
 fprintf('\n>>>[task3] Completed.\n')
