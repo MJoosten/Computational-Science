@@ -12,9 +12,9 @@ format compact;
 %% Start
 
 %parameters
-P=8; %number of configurations (configuration = amount segments of chain) 
-P_range=[10,5000]; %range of segment numbers (default: 100,5000)
-N=1000; %Iterations of Polymer/chain (DNA) generation (default:100)
+P=6; %number of configurations (configuration = amount segments of chain) 
+P_range=[10,2000]; %range of segment numbers (default: 100,5000)
+N=4000; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain
                                      %(base pairs) (default:2000)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
@@ -28,7 +28,7 @@ sigma = sqrt(length_persist.*length_chain./2);
 r = 3;
 
 %Preallocation - Outside Loop
-comp_time=zeros(N,1); %this array will hold the computational time for
+comp_time=0; %this array will hold the computational time for
                       %for each Iteration (N iterations)
 distances=zeros(N,P); %will hold the squared end-to-end distances
     Xend = zeros(P,N);
@@ -48,20 +48,23 @@ for pp=1:P
     N_local=N;
     %Preallocation - Inside Loop
     location=zeros(3,K_local,N_local); %will hold the location for each polymer link (3D)
-    tangents=ones(3,K_local,N_local);% holds the angles %TODO: do this more efficiently
+    tangents=ones(3,K_local,N_local);% holds the angles 
+    %TODO: do this more efficiently
     tangents(1,:,:)=tangents(1,:,:)*t_initial(1); %setting initial tangent
     tangents(2,:,:)=tangents(2,:,:)*t_initial(2); %setting initial tangent
     tangents(3,:,:)=tangents(3,:,:)*t_initial(3); %setting initial tangent
-
+   
     % generate random bend angles
     % Gaussian Distribution with mu=0;var=length_link/length_persistence
-    rand_angles=sqrt(length_link/length_persist)*randn(2,K_local,N_local);
-
+    rand_angles=sqrt(length_link/length_persist)*randn(2,K_local,N_local);   
+    
     % Computation ------------------------------------------------------------- 
 
     fprintf('\nComputing WLC 3D Distance for K=%u links, for N=%u iterations',K_local,N_local)
+    tic %start a clock for each run 
     for ii=1:N_local %loop over N iterations(generate N independent runs)
-        tic %start a clock for each run 
+        
+   
         for jj=1:K_local-1 %compute K segments %FIX                      
             %find alpha and beta of PREVIOUS iteration
             alpha_t=acos(tangents(3,jj,ii)); %arccos(t_z)       
@@ -78,12 +81,18 @@ for pp=1:P
             c_2=(cos(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))/norm_factor; 
 
             %calculate the new tangent vector (3D)
-            tangents(:,jj+1,ii)=c_t*tangents(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;    
+            tangents(:,jj+1,ii)=c_t*tangents(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;
         end
         
         %update Locations (fast method)
         location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
+        
+        %optional for this task
+        %Compute the squared end-to-end distance (works for non-zero starting
+        %points too. Alternative method would be norm(vector)^2.      
+        distances(ii,pp)=sum((location(:,end,ii)-location(:,1,ii)).^2);
     end
+    comp_time=toc;
     
     Xend(pp,:) = location(1,end,:);
     Yend(pp,:) = location(2,end,:);
