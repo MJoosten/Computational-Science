@@ -12,11 +12,15 @@ format compact;
 %% Start
 
 %parameters
-P=6; %number of configurations (configuration = amount segments of chain) 
-P_range=[10,2000]; %range of segment numbers (default: 100,5000)
-N=4000; %Iterations of Polymer/chain (DNA) generation (default:100)
+P=20; %number of configurations (configuration = amount segments of chain) 
+P_range=[100,5000]; %range of segment numbers (default: 100,5000)
+S = 20 % number of runs (runs = number of iterations)
+S_range = [50 1000]; %range of iteration number
+defN=100; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain
                                      %(base pairs) (default:2000)
+defK = 1000; %dfault number of segments
+N = round(linspace(S_range(1),S_range(2),S)); % iteration number
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
 length_persist=50; %[nm] persistence length (default:50)
 length_chain=K*length_link; %[nm] Total length of chain (DNA)
@@ -30,9 +34,9 @@ r = 3;
 %Preallocation - Outside Loop
 comp_time=0; %this array will hold the computational time for
                       %for each Iteration (N iterations)
-distances=zeros(N,P); %will hold the squared end-to-end distances
-    Xend = zeros(P,N);
-    Yend = zeros(P,N);
+distances=zeros(defN,P); %will hold the squared end-to-end distances
+    Xend = zeros(P,defN);
+    Yend = zeros(P,defN);
     bins = zeros(P,Nbins);
     Px = zeros(P,Npoints);
     points = zeros(P,Npoints);
@@ -42,10 +46,10 @@ distances=zeros(N,P); %will hold the squared end-to-end distances
 %opening statement (for console iterpretability)
 fprintf(['\n>>>[task 3] Starting Computation WLC 3D with %u'...
         ' configurations each with %u iterations and number of segments '...
-        'between %u and %u'],P,N,min(K),max(K))
+        'between %u and %u'],P,defN,min(K),max(K))
 for pp=1:P
     K_local=K(pp);
-    N_local=N;
+    N_local=defN;
     %Preallocation - Inside Loop
     location=zeros(3,K_local,N_local); %will hold the location for each polymer link (3D)
     tangents=ones(3,K_local,N_local);% holds the angles 
@@ -101,40 +105,130 @@ for pp=1:P
     %theoretical distribution
     Px(pp,:) = 1./sqrt(pi*length_persist*length_chain(pp))*exp((-points(pp,:).^2)./(length_persist*length_chain(pp)));
 end
+%%
+distances2=zeros(defK,S); %will hold the squared end-to-end distances
+Xend2 = zeros(S,defK);
+Yend2 = zeros(S,defK);
+devX2 = zeros(S,1);
+devY2 = zeros(S,1);
+length_chain2 = defK*length_link;
+sigma2 = sqrt(length_persist*length_chain2/2);
+bins2 = linspace(-r*sigma2,r*sigma2,Nbins);
+points2 = linspace(-r*sigma2,r*sigma2,Npoints);
+%theoretical distribution
+Px = 1./sqrt(pi*length_persist*length_chain2)*exp((-points2.^2)./(length_persist*length_chain2));
+
+for ss=1:S
+    K_local=defK;
+    N_local=N(ss);
+    %Preallocation - Inside Loop
+    location2=zeros(3,K_local,N_local); %will hold the location for each polymer link (3D)
+    tangents2=ones(3,K_local,N_local);% holds the angles 
+    %TODO: do this more efficiently
+    tangents2(1,:,:)=tangents2(1,:,:)*t_initial(1); %setting initial tangent
+    tangents2(2,:,:)=tangents2(2,:,:)*t_initial(2); %setting initial tangent
+    tangents2(3,:,:)=tangents2(3,:,:)*t_initial(3); %setting initial tangent
+   
+    % generate random bend angles
+    % Gaussian Distribution with mu=0;var=length_link/length_persistence
+    rand_angles=sqrt(length_link/length_persist)*randn(2,K_local,N_local);   
+    
+    % Computation ------------------------------------------------------------- 
+
+    fprintf('\nComputing WLC 3D Distance for K=%u links, for N=%u iterations',K_local,N_local)
+    tic %start a clock for each run 
+    for ii=1:N_local %loop over N iterations(generate N independent runs)
+        for jj=1:K_local-1 %compute K segments %FIX                      
+            %find alpha and beta of PREVIOUS iteration
+            alpha_t=acos(tangents2(3,jj,ii)); %arccos(t_z)       
+            beta_t=atan2(tangents2(2,jj,ii),tangents2(1,jj,ii));%arctan(t_y/t_x)
+            ortho_1=[cos(alpha_t)*cos(beta_t);cos(alpha_t)*sin(beta_t);-sin(alpha_t)];
+            ortho_2=[-sin(beta_t);cos(beta_t);0];
+
+            %calculate coefficients
+            %TODO: i feel like we can do some clever rewriting to reduce
+            %computational cost here (trigonometry???)
+            norm_factor=sqrt(1-(sin(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))^2);
+            c_t=(cos(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
+            c_1=(sin(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
+            c_2=(cos(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))/norm_factor; 
+
+            %calculate the new tangent vector (3D)
+            tangents2(:,jj+1,ii)=c_t*tangents2(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;
+        end
+        
+        %update Locations (fast method)
+        location2(:,:,ii)=cumsum(tangents2(:,:,ii)*length_link,2); 
+        
+        %optional for this task
+        %Compute the squared end-to-end distance (works for non-zero starting
+        %points too. Alternative method would be norm(vector)^2.      
+        distances2(ii,ss)=sum((location2(:,end,ii)-location2(:,1,ii)).^2);
+        Xend2(ss,ii) = location2(1,end,ii);
+        Yend2(ss,ii) = location2(2,end,ii);
+    end
+    comp_time=toc;
+end
+Xend2(Xend2==0)=NaN;
+Yend2(Yend2==0)=NaN;
 
 %signaling computation is finished
-fprintf('\n>%u Configurations each with %u iterations completed, Computation finished',P,N)
+fprintf('\n>%u Configurations each with %u iterations completed, Computation finished',P,defN)
 %% plots
    figure
 for pp=1:P
     subplot(2,P,pp)
     Hx = hist(Xend(pp,:),bins(pp,:));
     bar(bins(pp,:),Hx);
-    title(sprintf('histogram of end position in x over %i iterations and %i segments',N,K(pp)));xlabel('position [nm]');ylabel('count')
+    title(sprintf('[x] %i iterations and %i segments',defN,K(pp)));xlabel('position [nm]');ylabel('count')
     subplot(2,P,pp+P)
     Hy = hist(Yend(pp,:),bins(pp,:));hold on;
     bar(bins(pp,:),Hy);
-    title(sprintf('histogram of end position in y over %i iterations and %i segments',N,K(pp)));xlabel('position [nm]');ylabel('count') 
-
-%     sprintf('standard deviation in x for K=%i: %0.4f \nmean in x for K=%i: %0.4f \npredicted deviation: %0.4f',K(pp),std(Xend(pp,:)),K(pp),mean(Xend(pp,:)),sigma(pp))
-%     sprintf('standard deviation in y for K=%i: %0.4f \nmean in y for K=%i: %0.4f \npredicted deviation: %0.4f',K(pp),std(Yend(pp,:)),K(pp),mean(Yend(pp,:)),sigma(pp))
+    title(sprintf('[y] %i iterations and %i segments',defN,K(pp)));xlabel('position [nm]');ylabel('count') 
 
     %calculate the standard deviations of respective coordinates for each value of K
     devX(pp)=std(Xend(pp,:));
     devY(pp)=std(Yend(pp,:));
 end
 
-
 figure
-subplot(1,2,1)
+for ss=1:S
+    subplot(2,S,ss)
+    Hx2 = hist(Xend2(ss,:),bins2);
+    bar(bins2,Hx2);
+    title(sprintf('[x] %i iterations and %i segments',N(ss),defK));xlabel('position [nm]');ylabel('count')
+    subplot(2,S,ss+S)
+    Hy2 = hist(Yend2(ss,:),bins2);hold on;
+    bar(bins2,Hy2);
+    title(sprintf('[y] %i iterations and %i segments',N(ss),defK));xlabel('position [nm]');ylabel('count') 
+
+    devX2(ss) = std(Xend2(ss,1:N(ss)));
+    devY2(ss) = std(Yend2(ss,1:N(ss)));
+end
+figure
+subplot(2,2,1)
 bar(bins(end,:),Hx);title(sprintf('zoom into K=%i segments (x)',K(end)))
-subplot(1,2,2)
+xlabel('x [nm]')
+subplot(2,2,2)
 bar(bins(end,:),Hy);title(sprintf('zoom into K=%i segments (y)',K(end)))
+xlabel('x [nm]')
+subplot(2,2,3)
+bar(bins2,Hx2);title(sprintf('zoom into N=%i iterations (x)',N(end)));
+xlabel('x [nm]')
+subplot(2,2,4)
+bar(bins2,Hy2);title(sprintf('zoom into N=%i iterations (y)',N(end)));
+xlabel('x [nm]')
 
 figure
-subplot(1,2,1)
+subplot(2,2,1)
 plot(K,devX,K,sigma);title('standard deviation in x as a function of segment length');grid on;
-legend('simulated deviation','predicted deviation')
-subplot(1,2,2)
+legend('simulated deviation','predicted deviation');xlabel('number of segments')
+subplot(2,2,2)
 plot(K,devY,K,sigma);title('standard deviation in y as a function of segment length');grid on;
-legend('simulated deviation','predicted deviation')
+legend('simulated deviation','predicted deviation');xlabel('number of segments')
+subplot(2,2,3)
+plot(N,devX2,N,sigma2*ones(S,1));title('standard deviation in x as a function of iteration number');grid on;
+legend('simulated deviation','predicted deviation');xlabel('iteration number')
+subplot(2,2,4)
+plot(N,devY2,N,sigma2*ones(S,1));title('standard deviation in y as a function of iteration number');grid on;
+legend('simulated deviation','predicted deviation');xlabel('iteration number')
