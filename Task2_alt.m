@@ -16,13 +16,14 @@ format compact
 %% Start
 
 enable_plots=true; %do you wish to plot the WLC? %debugging
-enable_speed_plots=true; %do you wish to evaluate running times?
+enable_speed_plots=false; %do you wish to evaluate running times?
 P=20; %number of different values for K to try (affects total length)
-P_range=[5,20000]; %(default:1500,20000)
-N=100; %Iterations of Polymer/chain (DNA) generation (default:100)
+P_range=[2000,4000]; %(default:1500,20000)
+N=250; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain (base pairs)
+
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
-length_persist=85; %[nm] persistence length (default:50)
+length_persist=30; %[nm] persistence length (default:50)
 length_chain=K*length_link; %[nm] Total length of chain (DNA)
 t_initial=[1;0]; %initial orientation of t vector (unit length);
              
@@ -36,7 +37,7 @@ distances_to_4=zeros(N,P);
 
 %opening statement (for console iterpretability)
 fprintf(['\n>>>[task 2] Starting Computation with %u iterations,'...
-            'u Configurations (P) and %u to %u segments'],N,P,K(1),K(end))
+            '%u Configurations (P) and %u to %u segments'],N,P,K(1),K(end))
 
 
 for pp=1:P
@@ -74,7 +75,7 @@ for pp=1:P
     time_comp(pp)=toc;
 end
 %closing statement (for console iterpretability)
-fprintf('\n>>> %u configurations completed, Computation finished\n',P)
+fprintf('\n> %u configurations completed, Computation finished\n',P)
 
 %compute theoretical values
 theoretical_full=4*length_persist*length_chain-8*length_persist^2*...
@@ -90,7 +91,7 @@ for ii=1:P
 end
 
 % plotting figures
-close all
+%close all
 if enable_plots
     figure
     subplot(1,2,1)
@@ -123,33 +124,77 @@ end
 
 
 
-%% Fitting Function
+%% Fitting Parameter
 
-unknown=linspace(1,500,1000);
-% we can determine this using matlab symbolic language, which is probably a
-% good thing for bonus points
-for ii=1:1000
-    Chi_Deriv(ii)=sum(2*(16*unknown(ii)-4*length_chain).*...
-        (mean(distances,1)-4*unknown(ii).*length_chain+8*unknown(ii).^2));
+%end to end distance
+distances_end=mean(distances,1);
+%estimate the possible range for persistence length
+unknown=linspace(1,500,200);
+
+for ii=1:200
+% %     Chi_Deriv(ii)=sum(2*(16*unknown(ii)-4*length_chain).*...
+% %         (mean(distances,1)-4*unknown(ii).*length_chain+8*unknown(ii).^2));
+Chi_Deriv(ii)=Chi_squared_deriv(unknown(ii),length_chain,distances_end,error_chain);
 end
 figure
-plot(unknown,Chi_Deriv)
+
+plot(unknown,Chi_Deriv,'red')
 hold on
+xlabel('Persistence Length [nm]')
+ylabel('\chi^2')
 refline(0,0)
 
+title(sprintf('[Task 2]Chi^2 as as function of persistence length; true value: %i',length_persist))
 
-%% Symbolic Language
 
-syms persistence_length_sym
-chi=((mean(distances,1)-4*persistence_length_sym.*length_chain+8*persistence_length_sym.^2));
-chi_deriv=(2*(16*persistence_length_sym-4*length_chain(end)).*...
-    (mean(mean(distances,1))-4*persistence_length_sym*length_chain(end)+8*persistence_length_sym^2));
-chi_deriv_2=diff(chi);
-chi_deriv_3=persistence_length_sym^2
+estimate_ksi=unknown(1); %start at max of user provided range
+error=10;
+tic
+counter=1;
+while (error>10^-3&&toc<5)
+    estimate_ksi=estimate_ksi-Chi_squared_deriv(estimate_ksi,length_chain,distances_end,error_chain)/(Chi_second_deriv(estimate_ksi,length_chain,distances_end,error_chain));
+    error=abs(Chi_squared_deriv(estimate_ksi,length_chain,distances_end,error_chain)); %deviation from 0 (abs(y))%update a new error 
+    estimate_array(counter,1)=estimate_ksi;
+    estimate_array(counter,2)=Chi_squared_deriv(estimate_ksi,length_chain,distances_end,error_chain);
+    counter=counter+1; %keep track of how many iterations things took
+end
+plot(estimate_array(:,1),estimate_array(:,2),'c*')
+fprintf('> Root Solving using Newton-Raphson Method completed in %i iterations',counter)
+fprintf('> Estimate for persistence length is: %f nm. True value was: %i nm.',estimate_ksi,length_persist)
+line([estimate_ksi,estimate_ksi],ylim)
+legend('Chi Squared','Zero Line','Root Solving Points','Estimate')
 
-figure
-fplot(chi_deriv)
-xlim([1,500])
-ylim([-1,5]*10^10)
-kappa=root(chi_deriv_2,persistence_length_sym)
-vpa(kappa)
+fprintf('\n>>>[Task 2] completed.\n',P)
+
+%%
+function y_out=Chi_squared_deriv(input,length_chain,distances,error_chain)
+% % % y_out=sum(2*(16*input-4*length_chain).*(mean(distances)-4*input.*length_chain+8*input.^2));
+% % % y_out=(256*input^3-...
+% % %     192*sum(length_chain)*input^2+...
+% % %     (32*sum(length_chain.^2)+32*sum(distances))*input-...
+% % %     2*4*sum(length_chain.*distances))*...
+% % %     sum(1./(error_chain.^2));
+%find out how many iterations of P we had (output=P)
+length_P=length(distances);
+    for ii=1:length_P
+        factor=1/(error_chain(ii)^2);
+        term1=256*input^3*factor;
+        term2=-192*length_chain(ii)*input^2*factor;
+        term3=(32*length_chain(ii)^2+32*distances(ii))*input*factor;
+        term4=-(8*length_chain(ii)*distances(ii))*factor;
+    end
+y_out=(term1+term2+term3+term4)/length_P;
+
+end
+
+function y_out=Chi_second_deriv(input,length_chain,distances,error_chain)
+ length_P=length(distances);
+    for ii=1:length_P
+        factor=1/(error_chain(ii)^2);
+        term1=3*256*input^2*factor;
+        term2=-2*192*length_chain(ii)*input*factor;
+        term3=(32*length_chain(ii)^2+32*distances(ii))*factor;
+    % % %     term4=-(8*length_chain(ii)*distances(ii))*factor;
+    end
+y_out=term1+term2+term3;
+end
