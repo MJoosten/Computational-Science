@@ -14,8 +14,8 @@ format compact;
 %parameters
 P=20; %number of configurations (configuration = amount segments of chain) 
 P_range=[100,5000]; %range of segment numbers (default: 100,5000)
-S = 20 % number of runs (runs = number of iterations)
-S_range = [50 1000]; %range of iteration number
+S = 5; % number of runs (runs = number of iterations)
+S_range = [10 1000]; %range of iteration number
 defN=100; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain
                                      %(base pairs) (default:2000)
@@ -44,59 +44,73 @@ distances=zeros(defN,P); %will hold the squared end-to-end distances
     devY = zeros(P,1);
     
 %opening statement (for console iterpretability)
-fprintf(['\n>>>[task 3] Starting Computation WLC 3D with %u'...
+fprintf(['\n>>>[task 4] Starting Computation WLC 3D with %u'...
         ' configurations each with %u iterations and number of segments '...
         'between %u and %u'],P,defN,min(K),max(K))
 for pp=1:P
-    K_local=K(pp);
-    N_local=defN;
+     K_local=K(pp);    
+     
     %Preallocation - Inside Loop
-    location=zeros(3,K_local,N_local); %will hold the location for each polymer link (3D)
-    tangents=ones(3,K_local,N_local);% holds the angles 
+    location=zeros(3,K_local,defN); %will hold the location for each polymer link (3D)
+    tangents=ones(3,K_local,defN);% holds the angles 
+    norm_factor=zeros(defN,1);
+    ortho_1=zeros(defN,1);
+    ortho_2=zeros(defN,1);
+    alpha_t=zeros(defN,1);
+    beta_t=zeros(defN,1);
+    c_t=zeros(defN,1);
+    c_1=zeros(defN,1);
+    c_2=zeros(defN,1);
+    
     %TODO: do this more efficiently
     tangents(1,:,:)=tangents(1,:,:)*t_initial(1); %setting initial tangent
     tangents(2,:,:)=tangents(2,:,:)*t_initial(2); %setting initial tangent
     tangents(3,:,:)=tangents(3,:,:)*t_initial(3); %setting initial tangent
-   
+
+    
     % generate random bend angles
     % Gaussian Distribution with mu=0;var=length_link/length_persistence
-    rand_angles=sqrt(length_link/length_persist)*randn(2,K_local,N_local);   
-    
+     rand_angles=sqrt(length_link/length_persist)*randn(2,K_local,defN);
+     cos_1=reshape(cos(rand_angles(1,:,:)),[K_local,defN]);
+     sin_1=reshape(sin(rand_angles(1,:,:)),[K_local,defN]);
+     cos_2=reshape(cos(rand_angles(2,:,:)),[K_local,defN]);
+     sin_2=reshape(sin(rand_angles(2,:,:)),[K_local,defN]);
+     
     % Computation ------------------------------------------------------------- 
 
-    fprintf('\nComputing WLC 3D Distance for K=%u links, for N=%u iterations',K_local,N_local)
+    fprintf('\nComputing WLC 3D Distance for K=%u links, for N=%u iterations',K_local,defN)
     tic %start a clock for each run 
-    for ii=1:N_local %loop over N iterations(generate N independent runs)
-        
-   
-        for jj=1:K_local-1 %compute K segments %FIX                      
-            %find alpha and beta of PREVIOUS iteration
-            alpha_t=acos(tangents(3,jj,ii)); %arccos(t_z)       
-            beta_t=atan2(tangents(2,jj,ii),tangents(1,jj,ii));%arctan(t_y/t_x)
-            ortho_1=[cos(alpha_t)*cos(beta_t);cos(alpha_t)*sin(beta_t);-sin(alpha_t)];
-            ortho_2=[-sin(beta_t);cos(beta_t);0];
+           
+    
+    for jj=1:K_local-1 %compute K segments %FIX                      
+        %find alpha and beta of PREVIOUS iteration
+        alpha_t=reshape(acos(tangents(3,jj,:)),[1,defN]); %arccos(t_z)       
+        beta_t=reshape(atan2(tangents(2,jj,:),tangents(1,jj,:)),[1,defN]);%arctan(t_y/t_x)            
+       
+        ortho_1=[cos(alpha_t).*cos(beta_t);cos(alpha_t).*sin(beta_t);-sin(alpha_t)];
+        ortho_2=[-sin(beta_t);cos(beta_t);zeros(1,defN)];
 
-            %calculate coefficients
-            %TODO: i feel like we can do some clever rewriting to reduce
-            %computational cost here (trigonometry???)
-            norm_factor=sqrt(1-(sin(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))^2);
-            c_t=(cos(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
-            c_1=(sin(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
-            c_2=(cos(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))/norm_factor; 
+        %calculate coefficients       
+        norm_factor=sqrt(1-(sin_1(jj,:).*sin_2(jj,:)).^2);
+        c_t=(cos_1(jj,:).*cos_2(jj,:))./norm_factor;
+        c_1=(sin_1(jj,:).*cos_2(jj,:))./norm_factor;
+        c_2=(cos_1(jj,:).*sin_2(jj,:))./norm_factor;        
 
-            %calculate the new tangent vector (3D)
-            tangents(:,jj+1,ii)=c_t*tangents(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;
-        end
-        
-        %update Locations (fast method)
-        location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
-        
-        %optional for this task
-        %Compute the squared end-to-end distance (works for non-zero starting
-        %points too. Alternative method would be norm(vector)^2.      
-        distances(ii,pp)=sum((location(:,end,ii)-location(:,1,ii)).^2);
+        %calculate the new tangent vector (3D)
+        tangents(1,jj+1,:)=c_t.*reshape(tangents(1,jj,:),[1,defN])+c_1.*ortho_1(1,:)+c_2.*ortho_2(1,:);
+        tangents(2,jj+1,:)=c_t.*reshape(tangents(2,jj,:),[1,defN])+c_1.*ortho_1(2,:)+c_2.*ortho_2(2,:);
+        tangents(3,jj+1,:)=c_t.*reshape(tangents(3,jj,:),[1,defN])+c_1.*ortho_1(3,:)+c_2.*ortho_2(3,:);
     end
-    comp_time=toc;
+
+    %update Locations (fast method)
+    location=cumsum(tangents*length_link,2); 
+
+    %Compute the squared end-to-end distance (works for non-zero starting
+    %points too. Alternative method would be norm(vector)^2.      
+    distances(:,pp)=sum((location(:,end,:)-location(:,1,:)).^2);
+     
+    
+    comp_time=toc; %clock in computation time for this  WLC set. 
     
     Xend(pp,:) = location(1,end,:);
     Yend(pp,:) = location(2,end,:);
@@ -105,6 +119,7 @@ for pp=1:P
     %theoretical distribution
     Px(pp,:) = 1./sqrt(pi*length_persist*length_chain(pp))*exp((-points(pp,:).^2)./(length_persist*length_chain(pp)));
 end
+fprintf('\n>%u Configurations each with %u iterations completed, Computation 1 finished',P,defN)   
 %%
 distances2=zeros(defK,S); %will hold the squared end-to-end distances
 Xend2 = zeros(S,defK);
@@ -145,9 +160,7 @@ for ss=1:S
             ortho_1=[cos(alpha_t)*cos(beta_t);cos(alpha_t)*sin(beta_t);-sin(alpha_t)];
             ortho_2=[-sin(beta_t);cos(beta_t);0];
 
-            %calculate coefficients
-            %TODO: i feel like we can do some clever rewriting to reduce
-            %computational cost here (trigonometry???)
+            %calculate coefficients           
             norm_factor=sqrt(1-(sin(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))^2);
             c_t=(cos(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
             c_1=(sin(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
@@ -160,10 +173,6 @@ for ss=1:S
         %update Locations (fast method)
         location2(:,:,ii)=cumsum(tangents2(:,:,ii)*length_link,2); 
         
-        %optional for this task
-        %Compute the squared end-to-end distance (works for non-zero starting
-        %points too. Alternative method would be norm(vector)^2.      
-        distances2(ii,ss)=sum((location2(:,end,ii)-location2(:,1,ii)).^2);
         Xend2(ss,ii) = location2(1,end,ii);
         Yend2(ss,ii) = location2(2,end,ii);
     end
@@ -173,7 +182,7 @@ Xend2(Xend2==0)=NaN;
 Yend2(Yend2==0)=NaN;
 
 %signaling computation is finished
-fprintf('\n>%u Configurations each with %u iterations completed, Computation finished',P,defN)
+fprintf('\n>%u Configurations  with varaible iteration number completed, Computation 2 finished',P)
 %% plots
    figure
 for pp=1:P
@@ -232,3 +241,6 @@ legend('simulated deviation','predicted deviation');xlabel('iteration number')
 subplot(2,2,4)
 plot(N,devY2,N,sigma2*ones(S,1));title('standard deviation in y as a function of iteration number');grid on;
 legend('simulated deviation','predicted deviation');xlabel('iteration number')
+
+%closing statement
+fprintf('\n>>>[Task 4] Completed.\n')

@@ -22,9 +22,9 @@ plot_scatter=true; %do you wish to havea  scatter plot over plot3 for
                    %the plot with multiple WLC in one figure?
                    
                   
-P=12; %number of configurations (configuration = amount segments of chain) 
+P=50; %number of configurations (configuration = amount segments of chain) 
 P_range=[10,1000]; %range of segment numbers (default: 100,5000)
-N=250; %Iterations of Polymer/chain (DNA) generation (default:100)
+N=500; %Iterations of Polymer/chain (DNA) generation (default:100)
 K=round(linspace(P_range(1),P_range(2),P)); % Number of segments of chain
                                      %(base pairs) (default:2000)
 length_link=0.311;%[nm] Length of each chain link(base pair)(default:0.311)
@@ -49,48 +49,63 @@ for pp=1:P
     %Preallocation - Inside Loop
     location=zeros(3,K_local,N); %will hold the location for each polymer link (3D)
     tangents=ones(3,K_local,N);% holds the angles 
+    norm_factor=zeros(N,1);
+    ortho_1=zeros(N,1);
+    ortho_2=zeros(N,1);
+    alpha_t=zeros(N,1);
+    beta_t=zeros(N,1);
+    c_t=zeros(N,1);
+    c_1=zeros(N,1);
+    c_2=zeros(N,1);
+    
     %TODO: do this more efficiently
     tangents(1,:,:)=tangents(1,:,:)*t_initial(1); %setting initial tangent
     tangents(2,:,:)=tangents(2,:,:)*t_initial(2); %setting initial tangent
     tangents(3,:,:)=tangents(3,:,:)*t_initial(3); %setting initial tangent
 
+    
     % generate random bend angles
     % Gaussian Distribution with mu=0;var=length_link/length_persistence
      rand_angles=sqrt(length_link/length_persist)*randn(2,K_local,N);
-
+     cos_1=reshape(cos(rand_angles(1,:,:)),[K_local,N]);
+     sin_1=reshape(sin(rand_angles(1,:,:)),[K_local,N]);
+     cos_2=reshape(cos(rand_angles(2,:,:)),[K_local,N]);
+     sin_2=reshape(sin(rand_angles(2,:,:)),[K_local,N]);
+     
     % Computation ------------------------------------------------------------- 
 
     fprintf('\nComputing WLC 3D Distance for K=%u links, for N=%u iterations',K_local,N)
     tic %start a clock for each run 
-    for ii=1:N %loop over N iterations(generate N independent runs)
-        
-        for jj=1:K_local-1 %compute K segments %FIX                      
-            %find alpha and beta of PREVIOUS iteration
-            alpha_t=acos(tangents(3,jj,ii)); %arccos(t_z)       
-            beta_t=atan2(tangents(2,jj,ii),tangents(1,jj,ii));%arctan(t_y/t_x)
-            ortho_1=[cos(alpha_t)*cos(beta_t);cos(alpha_t)*sin(beta_t);-sin(alpha_t)];
-            ortho_2=[-sin(beta_t);cos(beta_t);0];
-
-            %calculate coefficients
-            %TODO: i feel like we can do some clever rewriting to reduce
-            %computational cost here (trigonometry???)
-            norm_factor=sqrt(1-(sin(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))^2);
-            c_t=(cos(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
-            c_1=(sin(rand_angles(1,jj,ii))*cos(rand_angles(2,jj,ii)))/norm_factor;
-            c_2=(cos(rand_angles(1,jj,ii))*sin(rand_angles(2,jj,ii)))/norm_factor; 
-
-            %calculate the new tangent vector (3D)
-            tangents(:,jj+1,ii)=c_t*tangents(:,jj,ii)+c_1*ortho_1+c_2*ortho_2;
-        end
-        
-        %update Locations (fast method)
-        location(:,:,ii)=cumsum(tangents(:,:,ii)*length_link,2); 
-        
-        %Compute the squared end-to-end distance (works for non-zero starting
-        %points too. Alternative method would be norm(vector)^2.      
-        distances(ii,pp)=sum((location(:,end,ii)-location(:,1,ii)).^2);
            
+    
+    for jj=1:K_local-1 %compute K segments %FIX                      
+        %find alpha and beta of PREVIOUS iteration
+        alpha_t=reshape(acos(tangents(3,jj,:)),[1,N]); %arccos(t_z)       
+        beta_t=reshape(atan2(tangents(2,jj,:),tangents(1,jj,:)),[1,N]);%arctan(t_y/t_x)            
+       
+        ortho_1=[cos(alpha_t).*cos(beta_t);cos(alpha_t).*sin(beta_t);-sin(alpha_t)];
+        ortho_2=[-sin(beta_t);cos(beta_t);zeros(1,N)];
+
+        %calculate coefficients       
+        norm_factor=sqrt(1-(sin_1(jj,:).*sin_2(jj,:)).^2);
+        c_t=(cos_1(jj,:).*cos_2(jj,:))./norm_factor;
+        c_1=(sin_1(jj,:).*cos_2(jj,:))./norm_factor;
+        c_2=(cos_1(jj,:).*sin_2(jj,:))./norm_factor;        
+
+        %calculate the new tangent vector (3D)
+        tangents(1,jj+1,:)=c_t.*reshape(tangents(1,jj,:),[1,N])+c_1.*ortho_1(1,:)+c_2.*ortho_2(1,:);
+        tangents(2,jj+1,:)=c_t.*reshape(tangents(2,jj,:),[1,N])+c_1.*ortho_1(2,:)+c_2.*ortho_2(2,:);
+        tangents(3,jj+1,:)=c_t.*reshape(tangents(3,jj,:),[1,N])+c_1.*ortho_1(3,:)+c_2.*ortho_2(3,:);
     end
+
+    %update Locations (fast method)
+    location=cumsum(tangents*length_link,2); 
+
+    %Compute the squared end-to-end distance (works for non-zero starting
+    %points too. Alternative method would be norm(vector)^2.      
+    distances(:,pp)=sum((location(:,end,:)-location(:,1,:)).^2);
+           
+    
     comp_time=toc; %clock in computation time for this  WLC set. 
     
     %calculate theoretical distance
